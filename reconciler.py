@@ -37,6 +37,24 @@ class ReconciliationResult:
     errors: list[str] = field(default_factory=list)
 
 
+def load_csv(path: str) -> pd.DataFrame:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+    df = pd.read_csv(path, dtype=str)
+    df.columns = [str(c).strip() for c in df.columns]
+    # Drop fully blank rows
+    df = df.dropna(how="all")
+    # Drop rows where the first column (Site ID) is blank — catches GRAND TOTAL rows
+    first_col = df.columns[0]
+    df = df[df[first_col].notna() & (df[first_col].str.strip() != "")]
+    # Drop summary/subtotal rows by checking the date column — valid dates contain digits.
+    # Rows like "Hyden" or "GRAND TOTAL" in the date column have no digits and are skipped.
+    date_col = next((c for c in df.columns if "date" in str(c).lower()), None)
+    if date_col:
+        df = df[df[date_col].fillna("").str.contains(r'\d', regex=True)]
+    return df
+
+
 def detect_columns(df: pd.DataFrame) -> ColumnMap:
     cols = list(df.columns)
 

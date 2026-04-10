@@ -183,3 +183,26 @@ def test_format_output_with_errors():
     output = format_output(result)
     assert "WARNINGS" in output
     assert "Non-numeric" in output
+
+
+from reconciler import load_csv
+
+
+def test_load_csv_returns_dataframe():
+    csv_content = "Site ID,Date,Dep1,DIT,Bank\n001,2025-01-01,100.0,,100.0\n"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, newline="") as f:
+        f.write(csv_content)
+        path = f.name
+    try:
+        df = load_csv(path)
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 1
+        assert "Dep1" in df.columns
+        assert "Bank" in df.columns
+    finally:
+        os.unlink(path)
+
+
+def test_load_csv_missing_file_raises():
+    with pytest.raises(FileNotFoundError):
+        load_csv("/nonexistent/path/does_not_exist.csv")

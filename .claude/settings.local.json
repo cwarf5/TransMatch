@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pandas; print\\(pandas.__version__\\)\")",
+      "Bash(pytest tests/test_reconciler.py -v)",
+      "Bash(python -c \"from reconciler import ColumnMap, DepositEntry, BankEntry, ReconciliationResult; print\\('All imports successful!'\\)\")",
+      "Bash(python)",
+      "Bash(python -m pytest tests/test_reconciler.py -v)",
+      "Bash(python -c \"from reconciler import ColumnMap, DepositEntry, BankEntry, ReconciliationResult; print\\('All imports successful'\\)\")",
+      "Bash(python -m pytest tests/test_reconciler.py -v --co -q)"
+    ]
+  }
+}
