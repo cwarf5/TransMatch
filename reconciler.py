@@ -63,3 +63,73 @@ def detect_columns(df: pd.DataFrame) -> ColumnMap:
                 break
 
     return ColumnMap(dep_cols=dep_cols, bank_col=bank_col, dit_col=dit_col, date_col=date_col)
+
+
+def run_reconciliation(df: pd.DataFrame, col_map: ColumnMap) -> ReconciliationResult:
+    result = ReconciliationResult()
+
+    def _get_date(row) -> str:
+        if col_map.date_col and col_map.date_col in row.index:
+            val = str(row[col_map.date_col]).strip()
+            return val if val not in ("", "nan") else "Unknown"
+        return "Unknown"
+
+    def _is_dit(row) -> bool:
+        if col_map.dit_col and col_map.dit_col in row.index:
+            return str(row[col_map.dit_col]).strip().upper() == "DIT"
+        return False
+
+    def _parse_amount(val, context: str, result: ReconciliationResult) -> Optional[float]:
+        s = str(val).strip()
+        if s in ("", "nan", "None"):
+            return None
+        try:
+            return round(float(s.replace(",", "")), 2)
+        except (ValueError, TypeError):
+            result.errors.append(f"Non-numeric value in {context}: {val!r}")
+            return None
+
+    # Collect deposit entries
+    all_deps: list[DepositEntry] = []
+    for _, row in df.iterrows():
+        date = _get_date(row)
+        is_dit = _is_dit(row)
+        for dep_col in col_map.dep_cols:
+            amount = _parse_amount(row[dep_col], f"{dep_col} on {date}", result)
+            if amount is not None:
+                all_deps.append(DepositEntry(amount=amount, date=date, is_dit=is_dit))
+
+    # Collect bank entries
+    all_bank: list[BankEntry] = []
+    for _, row in df.iterrows():
+        date = _get_date(row)
+        amount = _parse_amount(row[col_map.bank_col], f"Bank on {date}", result)
+        if amount is not None:
+            all_bank.append(BankEntry(amount=amount, date=date))
+
+    # Separate DIT from non-DIT deposits
+    result.dit_entries = [d for d in all_deps if d.is_dit]
+    non_dit_deps = [d for d in all_deps if not d.is_dit]
+
+    # Multiset matching via Counter
+    dep_counter = Counter(d.amount for d in non_dit_deps)
+    bank_counter = Counter(b.amount for b in all_bank)
+    matched_counter = dep_counter & bank_counter
+    result.matched_count = sum(matched_counter.values())
+    unmatched_dep_counter = dep_counter - bank_counter
+    unmatched_bank_counter = bank_counter - dep_counter
+
+    # Preserve per-row dates by walking source lists
+    consumed_dep: Counter = Counter()
+    for dep in non_dit_deps:
+        if consumed_dep[dep.amount] < unmatched_dep_counter[dep.amount]:
+            result.unmatched_deps.append(dep)
+            consumed_dep[dep.amount] += 1
+
+    consumed_bank: Counter = Counter()
+    for bank in all_bank:
+        if consumed_bank[bank.amount] < unmatched_bank_counter[bank.amount]:
+            result.unmatched_bank.append(bank)
+            consumed_bank[bank.amount] += 1
+
+    return result

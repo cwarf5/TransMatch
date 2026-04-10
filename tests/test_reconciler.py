@@ -65,3 +65,84 @@ def test_detect_dit_no_false_positive_credit():
     df = make_df(["Site ID", "Date", "Dep1", "CREDIT", "Bank"])
     col_map = detect_columns(df)
     assert col_map.dit_col is None
+
+
+from reconciler import run_reconciliation
+
+
+def _make_df(rows):
+    """rows: list of (date, dep1, dep2, dep3, dit_flag, bank)"""
+    return pd.DataFrame(rows, columns=["Date", "Dep1", "Dep2", "Dep3", "DIT", "Bank"])
+
+
+def test_all_matched():
+    df = _make_df([
+        ("2025-01-01", "100.00", None, None, None, "100.00"),
+        ("2025-01-02", "200.00", None, None, None, "200.00"),
+    ])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 2
+    assert result.unmatched_deps == []
+    assert result.unmatched_bank == []
+    assert result.dit_entries == []
+
+
+def test_unmatched_dep():
+    df = _make_df([("2025-01-01", "500.00", None, None, None, None)])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 0
+    assert len(result.unmatched_deps) == 1
+    assert result.unmatched_deps[0].amount == 500.0
+    assert result.unmatched_deps[0].date == "2025-01-01"
+
+
+def test_unmatched_bank():
+    df = _make_df([("2025-01-01", None, None, None, None, "300.00")])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 0
+    assert len(result.unmatched_bank) == 1
+    assert result.unmatched_bank[0].amount == 300.0
+
+
+def test_dit_not_flagged_as_discrepancy():
+    df = _make_df([("2025-01-01", "750.00", None, None, "DIT", None)])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 0
+    assert result.unmatched_deps == []
+    assert len(result.dit_entries) == 1
+    assert result.dit_entries[0].amount == 750.0
+
+
+def test_duplicate_amounts_both_matched():
+    df = _make_df([
+        ("2025-01-01", "500.00", None, None, None, "500.00"),
+        ("2025-01-02", "500.00", None, None, None, "500.00"),
+    ])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 2
+    assert result.unmatched_deps == []
+    assert result.unmatched_bank == []
+
+
+def test_duplicate_amounts_one_unmatched():
+    df = _make_df([
+        ("2025-01-01", "500.00", None, None, None, "500.00"),
+        ("2025-01-02", "500.00", None, None, None, None),
+    ])
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 1
+    assert len(result.unmatched_deps) == 1
+
+
+def test_multiple_dep_columns():
+    df = pd.DataFrame({
+        "Date": ["2025-01-01"],
+        "Dep1": ["100.00"],
+        "Dep2": ["200.00"],
+        "Dep3": ["300.00"],
+        "DIT": [None],
+        "Bank": ["100.00"],
+    })
+    result = run_reconciliation(df, detect_columns(df))
+    assert result.matched_count == 1
+    assert len(result.unmatched_deps) == 2
