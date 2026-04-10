@@ -51,3 +51,17 @@ def test_detect_dit_column_by_cell_value():
     })
     col_map = detect_columns(df)
     assert col_map.dit_col == "Flag"
+
+
+def test_detect_dit_no_false_positive_audit():
+    # "AUDIT" contains "dit" as substring but should NOT match as DIT column
+    df = make_df(["Site ID", "Date", "Dep1", "AUDIT", "Bank"])
+    col_map = detect_columns(df)
+    assert col_map.dit_col is None
+
+
+def test_detect_dit_no_false_positive_credit():
+    # "CREDIT" contains "dit" as substring but should NOT match as DIT column
+    df = make_df(["Site ID", "Date", "Dep1", "CREDIT", "Bank"])
+    col_map = detect_columns(df)
+    assert col_map.dit_col is None
