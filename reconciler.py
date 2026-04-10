@@ -65,6 +65,42 @@ def detect_columns(df: pd.DataFrame) -> ColumnMap:
     return ColumnMap(dep_cols=dep_cols, bank_col=bank_col, dit_col=dit_col, date_col=date_col)
 
 
+def format_output(result: ReconciliationResult) -> str:
+    lines = []
+    lines.append("--- Summary ---")
+    lines.append(f"  {'✓  Matched:':<22} {result.matched_count}")
+    lines.append(f"  {'✗  Unmatched Deps:':<22} {len(result.unmatched_deps)}")
+    lines.append(f"  {'~  DIT (noted):':<22} {len(result.dit_entries)}")
+    lines.append(f"  {'✗  Unmatched Bank:':<22} {len(result.unmatched_bank)}")
+    lines.append("")
+
+    has_detail = result.unmatched_deps or result.unmatched_bank or result.dit_entries
+    if not has_detail:
+        lines.append("  No discrepancies found.")
+    else:
+        lines.append("--- Details ---")
+        for dep in result.unmatched_deps:
+            lines.append(
+                f"  ✗  DEP   {dep.date:<14}  ${dep.amount:>12,.2f}   No matching bank entry"
+            )
+        for bank in result.unmatched_bank:
+            lines.append(
+                f"  ✗  BANK  {bank.date:<14}  ${bank.amount:>12,.2f}   No matching deposit"
+            )
+        for dit in result.dit_entries:
+            lines.append(
+                f"  ~  DIT   {dit.date:<14}  ${dit.amount:>12,.2f}   Deposit in transit (noted)"
+            )
+
+    if result.errors:
+        lines.append("")
+        lines.append("--- WARNINGS ---")
+        for err in result.errors:
+            lines.append(f"  !  {err}")
+
+    return "\n".join(lines)
+
+
 def run_reconciliation(df: pd.DataFrame, col_map: ColumnMap) -> ReconciliationResult:
     result = ReconciliationResult()
 

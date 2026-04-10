@@ -146,3 +146,40 @@ def test_multiple_dep_columns():
     result = run_reconciliation(df, detect_columns(df))
     assert result.matched_count == 1
     assert len(result.unmatched_deps) == 2
+
+
+from reconciler import format_output
+
+
+def test_format_output_all_matched():
+    result = ReconciliationResult(matched_count=3)
+    output = format_output(result)
+    assert "Matched:" in output
+    assert "3" in output
+    assert "No discrepancies found" in output
+
+
+def test_format_output_with_discrepancies():
+    result = ReconciliationResult(
+        matched_count=1,
+        unmatched_deps=[DepositEntry(amount=1250.0, date="2025-03-01")],
+        unmatched_bank=[BankEntry(amount=875.0, date="2025-03-05")],
+        dit_entries=[DepositEntry(amount=500.0, date="2025-03-08", is_dit=True)],
+    )
+    output = format_output(result)
+    assert "Matched:" in output
+    assert "1,250.00" in output
+    assert "2025-03-01" in output
+    assert "DEP" in output
+    assert "875.00" in output
+    assert "2025-03-05" in output
+    assert "BANK" in output
+    assert "500.00" in output
+    assert "DIT" in output
+
+
+def test_format_output_with_errors():
+    result = ReconciliationResult(errors=["Non-numeric value in Dep1 on 2025-01-01: 'abc'"])
+    output = format_output(result)
+    assert "WARNINGS" in output
+    assert "Non-numeric" in output
