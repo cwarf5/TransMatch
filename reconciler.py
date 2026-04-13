@@ -6,6 +6,10 @@ import os
 import re
 import pandas as pd
 
+# Ensure unlimited row processing (no truncation)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
 
 @dataclass
 class ColumnMap:
